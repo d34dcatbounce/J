@@ -2,46 +2,41 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>3D ASCII Gyro Space</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Scroll Space</title>
     <style>
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background-color: black; 
-            color: #00ff00; /* 사이버펑크 터미널 느낌의 그린 */
-            font-family: monospace;
-        }
-        /* 불필요한 장식을 뺀 최소한의 레이아웃 */
-        #overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
+        body { margin: 0; background: #000; color: #00ff00; font-family: monospace; overflow-x: hidden; }
+        
+        /* 스크롤 길이를 만들어 시야 이동감을 부여 */
+        #container { height: 500vh; position: relative; }
+        
+        /* 화면에 고정된 캔버스 */
+        #view {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 999;
+            pointer-events: none;
         }
-        button {
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            font-family: monospace;
-            background-color: transparent;
-            color: #00ff00;
-            border: 1px solid #00ff00;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-        button:hover {
-            background-color: #00ff00;
-            color: black;
+
+        /* 중앙 안내 문구 */
+        #hint {
+            position: fixed;
+            bottom: 20px; width: 100%;
+            text-align: center;
+            font-size: 0.8rem;
+            opacity: 0.6;
+            letter-spacing: 2px;
         }
     </style>
 </head>
 <body>
 
-    <div id="overlay">
-        <button id="startBtn">시스템 접속 (자이로 활성화)</button>
+    <div id="container">
+        <div id="view"></div>
+        <div id="hint">SCROLL TO DIVE INTO THE MACHINE</div>
     </div>
 
     <script type="importmap">
@@ -56,89 +51,72 @@
     <script type="module">
         import * as THREE from 'three';
         import { AsciiEffect } from 'three/addons/effects/AsciiEffect.js';
-        import { DeviceOrientationControls } from 'three/addons/controls/DeviceOrientationControls.js';
 
-        let camera, scene, renderer, effect, controls;
-        let mechanicalObject;
+        let scene, camera, renderer, effect, mesh;
 
-        const startBtn = document.getElementById('startBtn');
-        const overlay = document.getElementById('overlay');
-
-        // iOS 등 최신 모바일 브라우저의 센서 권한 요청 로직
-        startBtn.addEventListener('click', () => {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            init();
-                            overlay.style.display = 'none';
-                        } else {
-                            alert('자이로센서 권한이 필요합니다.');
-                        }
-                    })
-                    .catch(console.error);
-            } else {
-                init();
-                overlay.style.display = 'none';
-            }
-        });
+        init();
+        animate();
 
         function init() {
-            // 1. 씬 및 카메라 세팅
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000);
-            camera.position.z = 500;
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
 
-            // 2. 기계적인 형태의 3D 오브젝트 생성 (TorusKnot)
-            const geometry = new THREE.TorusKnotGeometry(120, 40, 100, 16);
-            const material = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true });
-            mechanicalObject = new THREE.Mesh(geometry, material);
-            scene.add(mechanicalObject);
+            // 기하학적 착시를 주는 구조물 (Icosahedron)
+            const geometry = new THREE.IcosahedronGeometry(2, 1);
+            const material = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true, wireframe: false });
+            mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
 
-            // 3. 조명 (아스키 효과는 빛의 명암에 따라 문자가 결정됨)
-            const light1 = new THREE.PointLight(0xffffff, 3, 0, 0);
-            light1.position.set(500, 500, 500);
-            scene.add(light1);
+            // 주변에 흩뿌려진 입자들 (공간감 극대화)
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsCount = 500;
+            const posArray = new Float32Array(starsCount * 3);
+            for(let i = 0; i < starsCount * 3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 20;
+            }
+            starsGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const starsMaterial = new THREE.PointsMaterial({ size: 0.05, color: 0xffffff });
+            const starMesh = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(starMesh);
 
-            const light2 = new THREE.PointLight(0xffffff, 1, 0, 0);
-            light2.position.set(-500, -500, -500);
-            scene.add(light2);
+            const light = new THREE.PointLight(0xffffff, 100);
+            light.position.set(5, 5, 5);
+            scene.add(light);
 
-            // 4. 렌더러 설정
             renderer = new THREE.WebGLRenderer();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-
-            // 5. 아스키 이펙트 적용 (빛이 밝을수록 촘촘한 문자 배치)
+            
+            // 아스키 효과 설정
             effect = new AsciiEffect(renderer, ' .:-+*=%@#', { invert: true });
             effect.setSize(window.innerWidth, window.innerHeight);
             effect.domElement.style.color = '#00ff00';
             effect.domElement.style.backgroundColor = 'black';
-            document.body.appendChild(effect.domElement);
-
-            // 6. 자이로센서 컨트롤 연결
-            controls = new DeviceOrientationControls(camera);
+            document.getElementById('view').appendChild(effect.domElement);
 
             window.addEventListener('resize', onWindowResize);
-            animate();
         }
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
             effect.setSize(window.innerWidth, window.innerHeight);
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            
-            // 오브젝트 자체도 천천히 회전시켜 생동감 부여
-            mechanicalObject.rotation.x += 0.005;
-            mechanicalObject.rotation.y += 0.01;
-            
-            // 기기 기울기에 따라 카메라 시점 업데이트
-            controls.update(); 
-            
+
+            // 스크롤 양 계산 (0 ~ 1)
+            const scrollPercent = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
+
+            // 1. 시각적 착시: 스크롤에 따라 오브젝트 회전 및 줌인
+            mesh.rotation.y = scrollPercent * Math.PI * 4;
+            mesh.rotation.x = scrollPercent * Math.PI * 2;
+            camera.position.z = 5 - (scrollPercent * 4); // 안으로 빨려 들어가는 효과
+
+            // 2. 카메라 시야각 왜곡 (착시 효과 극대화)
+            camera.fov = 75 + (scrollPercent * 40); 
+            camera.updateProjectionMatrix();
+
             effect.render(scene, camera);
         }
     </script>
