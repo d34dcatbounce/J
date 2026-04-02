@@ -3,27 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Sella: 360 Dome Interface</title>
+    <title>Sella: The Infinite Core</title>
     <style>
-        body { 
-            margin: 0; padding: 0; overflow: hidden; 
-            background-color: black; touch-action: none; cursor: grab;
-        }
+        body { margin: 0; padding: 0; overflow: hidden; background-color: black; touch-action: none; cursor: grab; }
         body:active { cursor: grabbing; }
         #overlay {
-            position: fixed; top: 20px; left: 20px;
-            color: #00ff00; font-family: monospace; font-size: 11px;
-            letter-spacing: 1px; z-index: 100; pointer-events: none;
-            text-transform: uppercase; opacity: 0.8;
+            position: fixed; top: 30px; left: 30px;
+            color: #00ff00; font-family: 'Courier New', Courier, monospace;
+            font-size: 12px; letter-spacing: 1px; z-index: 100; pointer-events: none;
+            text-transform: uppercase; line-height: 1.8;
         }
     </style>
 </head>
 <body>
 
     <div id="overlay">
-        SYSTEM: FULL_SPHERICAL_SCAN<br>
-        VIEWPORT: 360_DEGREE_DOME<br>
-        STATUS: UNRESTRICTED_ROTATION
+        [ SYSTEM_LOG: ACCESS_GRANTED ]<br>
+        LOC: SELLA_INTERIOR_DOME<br>
+        MODE: TOTAL_SPHERICAL_VIEW<br>
+        OBJECTS: MECHANICAL_ARTIFACTS_LOADED
     </div>
 
     <script type="importmap">
@@ -40,46 +38,76 @@
         import { AsciiEffect } from 'three/addons/effects/AsciiEffect.js';
 
         let scene, camera, renderer, effect;
-        let targetRotationX = 0, targetRotationY = 0;
+        
+        // 구면 좌표계 변수 (회전 꼬임 방지)
+        let lon = 0, lat = 0;
+        let phi = 0, theta = 0;
+        let onPointerDownLon = 0, onPointerDownLat = 0;
+        let onPointerDownPointerX = 0, onPointerDownPointerY = 0;
         let isDragging = false;
-        let prevX = 0, prevY = 0;
 
         init();
         animate();
 
         function init() {
             scene = new THREE.Scene();
-            // 시야각을 조금 더 넓혀서(85도) 돔 내부의 광활함을 강조
-            camera = new THREE.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 0, 0.1); 
+            camera = new THREE.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 1, 1100);
+            camera.target = new THREE.Vector3(0, 0, 0);
 
-            // 1. 구체 공간을 촘촘히 채우는 '데이터 입자'들
-            // 구 형태(Sphere)를 따라 오브젝트를 배치하여 돔 느낌 극대화
-            const geo = new THREE.IcosahedronGeometry(1, 0);
-            for (let i = 0; i < 300; i++) {
-                const mat = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true });
-                const mesh = new THREE.Mesh(geo, mat);
+            // --- 조형물 배치 (기계적 세계관) ---
+            const createComplexObject = () => {
+                const group = new THREE.Group();
                 
-                // 완전히 무작위한 구체 좌표 배치
-                const phi = Math.acos(-1 + (2 * i) / 300);
-                const theta = Math.sqrt(300 * Math.PI) * phi;
-                const r = 30 + Math.random() * 10;
+                // 1. 거대한 꼬인 고리 (TorusKnot)
+                const coreGeo = new THREE.TorusKnotGeometry(2, 0.6, 64, 8);
+                const mat = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true });
+                const core = new THREE.Mesh(coreGeo, mat);
+                group.add(core);
 
-                mesh.position.set(
-                    r * Math.sin(phi) * Math.cos(theta),
-                    r * Math.sin(phi) * Math.sin(theta),
-                    r * Math.cos(phi)
+                // 2. 주변을 감싸는 보조 링
+                const ringGeo = new THREE.TorusGeometry(4, 0.1, 16, 100);
+                const ring = new THREE.Mesh(ringGeo, mat);
+                ring.rotation.x = Math.PI / 2;
+                group.add(ring);
+
+                return group;
+            };
+
+            // 공간 곳곳에 15개의 대형 구조물 배치
+            for (let i = 0; i < 15; i++) {
+                const obj = createComplexObject();
+                const dist = 30 + Math.random() * 20;
+                const angle1 = Math.random() * Math.PI * 2;
+                const angle2 = Math.random() * Math.PI;
+
+                obj.position.set(
+                    dist * Math.sin(angle2) * Math.cos(angle1),
+                    dist * Math.sin(angle2) * Math.sin(angle1),
+                    dist * Math.cos(angle2)
                 );
-                mesh.rotation.set(Math.random(), Math.random(), Math.random());
-                scene.add(mesh);
+                obj.rotation.set(Math.random() * 5, Math.random() * 5, Math.random() * 5);
+                scene.add(obj);
             }
 
-            // 2. 조명 (카메라 위치에서 360도로 뻗어나가는 빛)
-            const light = new THREE.PointLight(0xffffff, 1000, 100);
-            camera.add(light);
-            scene.add(camera);
+            // 작은 파편들(기둥, 박스) 추가
+            const pGeo = new THREE.CylinderGeometry(0.2, 0.2, 10, 6);
+            for (let i = 0; i < 50; i++) {
+                const pillar = new THREE.Mesh(pGeo, new THREE.MeshPhongMaterial({ color: 0xffffff }));
+                const dist = 25 + Math.random() * 15;
+                const a1 = Math.random() * Math.PI * 2;
+                const a2 = Math.random() * Math.PI;
+                pillar.position.set(dist * Math.sin(a2) * Math.cos(a1), dist * Math.sin(a2) * Math.sin(a1), dist * Math.cos(a2));
+                pillar.lookAt(0,0,0);
+                scene.add(pillar);
+            }
 
-            // 3. 아스키 렌더러
+            // 3. 조명 (카메라 위치의 점광원)
+            const light = new THREE.PointLight(0xffffff, 1500);
+            scene.add(light);
+            const ambient = new THREE.AmbientLight(0x404040); // 최소한의 형태 감지
+            scene.add(ambient);
+
+            // 4. 아스키 렌더러
             renderer = new THREE.WebGLRenderer();
             effect = new AsciiEffect(renderer, ' .:-+*=%@#', { invert: true });
             effect.setSize(window.innerWidth, window.innerHeight);
@@ -87,31 +115,29 @@
             effect.domElement.style.backgroundColor = 'black';
             document.body.appendChild(effect.domElement);
 
-            // 4. 무제한 드래그 이벤트 (Delta 방식)
-            window.addEventListener('pointerdown', (e) => {
-                isDragging = true;
-                prevX = e.clientX;
-                prevY = e.clientY;
-            });
-
-            window.addEventListener('pointermove', (e) => {
-                if (!isDragging) return;
-                
-                // 이동량 계산
-                const dx = e.clientX - prevX;
-                const dy = e.clientY - prevY;
-
-                // 회전값 누적 (제한 없음)
-                targetRotationY += dx * 0.004;
-                targetRotationX += dy * 0.004;
-
-                prevX = e.clientX;
-                prevY = e.clientY;
-            });
-
-            window.addEventListener('pointerup', () => isDragging = false);
+            // 5. 드래그 이벤트 (구면 좌표 누적 로직)
+            document.addEventListener('pointerdown', onPointerDown);
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
             window.addEventListener('resize', onWindowResize);
         }
+
+        function onPointerDown(e) {
+            isDragging = true;
+            onPointerDownPointerX = e.clientX;
+            onPointerDownPointerY = e.clientY;
+            onPointerDownLon = lon;
+            onPointerDownLat = lat;
+        }
+
+        function onPointerMove(e) {
+            if (!isDragging) return;
+            // 감도 조절 (0.1)
+            lon = (onPointerDownPointerX - e.clientX) * 0.1 + onPointerDownLon;
+            lat = (e.clientY - onPointerDownPointerY) * 0.1 + onPointerDownLat;
+        }
+
+        function onPointerUp() { isDragging = false; }
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -122,10 +148,17 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // 카메라의 회전값에 부드러운 관성 적용 (Lerp)
-            // 어느 방향으로든 무한히 회전 가능
-            camera.rotation.y += (targetRotationY - camera.rotation.y) * 0.1;
-            camera.rotation.x += (targetRotationX - camera.rotation.x) * 0.1;
+            // 수직 회전 각도 제한 (머리 꼭대기에서 시야가 뒤집히는 것 방지)
+            lat = Math.max(-89.9, Math.min(89.9, lat));
+            
+            // 경도/위도를 3D 좌표(Vector3)로 변환하여 카메라 시선 처리
+            phi = THREE.MathUtils.degToRad(90 - lat);
+            theta = THREE.MathUtils.degToRad(lon);
+
+            camera.target.x = 500 * Math.sin(phi) * Math.cos(theta);
+            camera.target.y = 500 * Math.cos(phi);
+            camera.target.z = 500 * Math.sin(phi) * Math.sin(theta);
+            camera.lookAt(camera.target);
 
             effect.render(scene, camera);
         }
